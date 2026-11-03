@@ -1,8 +1,18 @@
-.terraform/
+# Terraform
+**/.terraform/
 *.tfstate
 *.tfstate.*
 *.tfvars
 !*.tfvars.example
-.terraform.lock.hcl
+*.tfplan
+infra.backup/
+
+# Python
 __pycache__/
+*.pyc
+.venv/
+
+# Secrets
 .env
+.env.*
+!.env.example

@@ -1,0 +1,4 @@
+.git
+.terraform
+*.tfstate*
+__pycache__

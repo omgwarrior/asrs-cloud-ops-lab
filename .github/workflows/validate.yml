@@ -1,0 +1,26 @@
+name: validate
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - name: Terraform format
+        run: terraform fmt -check -recursive infra
+      - name: Terraform validate
+        shell: bash
+        run: |
+          set -euo pipefail
+          for dir in infra/ec2 infra/ecs infra/eks; do
+            terraform -chdir="$dir" init -backend=false -input=false
+            terraform -chdir="$dir" validate
+          done
+      - name: Python syntax
+        run: python -m py_compile app/server.py
+      - name: Build container
+        run: docker build -t cloud-ops-demo:ci .

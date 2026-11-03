@@ -1,17 +1,28 @@
 name: validate
+
 on:
   push:
   pull_request:
+
 permissions:
   contents: read
+
 jobs:
   validate:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.17.1"
+
       - name: Terraform format
         run: terraform fmt -check -recursive infra
+
       - name: Terraform validate
         shell: bash
         run: |
@@ -20,7 +31,42 @@ jobs:
             terraform -chdir="$dir" init -backend=false -input=false
             terraform -chdir="$dir" validate
           done
+
       - name: Python syntax
-        run: python -m py_compile app/server.py
-      - name: Build container
+        run: python3 -m py_compile app/server.py tests/test_health.py
+
+      - name: Build Docker image
         run: docker build -t cloud-ops-demo:ci .
+
+      - name: Start application container
+        run: |
+          docker run -d \
+            --name cloud-ops-demo \
+            -p 127.0.0.1:8080:8080 \
+            cloud-ops-demo:ci
+
+      - name: Wait for application readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in {1..30}; do
+            if curl --fail --silent --noproxy '*' \
+              http://127.0.0.1:8080/healthz >/dev/null; then
+              echo "Application is ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs cloud-ops-demo
+          exit 1
+
+      - name: Run HTTP integration test
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Show container logs on failure
+        if: failure()
+        run: docker logs cloud-ops-demo || true
+
+      - name: Stop application container
+        if: always()
+        run: docker rm -f cloud-ops-demo || true
